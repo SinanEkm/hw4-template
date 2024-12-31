@@ -1,0 +1,49 @@
+name: Classroom Grading
+
+on: [push]
+
+permissions:
+  contents: write
+  issues: write
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    
+    steps:
+      - uses: actions/checkout@v3
+        with:
+          fetch-depth: 0
+      
+      - name: Set up JDK
+        uses: actions/setup-java@v3
+        with:
+          java-version: '17'
+          distribution: 'temurin'
+          
+      - name: Compile all Java files
+        run: |
+          find . -name "*.java" > sources.txt
+          javac @sources.txt
+          
+      - name: Run grading
+        run: |
+          CLASSPATH=".:./src:./given:./autograder"
+          grade_output=$(java -cp "$CLASSPATH" given.Grade)
+          echo "$grade_output"
+          SCORE=$(echo "$grade_output" | grep -o "Grade: [0-9]*" | awk '{print $2}')
+          echo "FINAL_SCORE=$SCORE" >> $GITHUB_ENV
+          
+      - name: Update README with grade
+        run: |
+          echo "# Assignment Grade" > README.md
+          echo "Last graded: $(date)" >> README.md
+          echo "Final Score: ${{ env.FINAL_SCORE }}" >> README.md
+          
+      - name: Commit and push grade
+        run: |
+          git config --local user.email "github-actions[bot]@users.noreply.github.com"
+          git config --local user.name "github-actions[bot]"
+          git add README.md
+          git commit -m "Update grade: ${{ env.FINAL_SCORE }}"
+          git push
